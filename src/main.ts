@@ -16,10 +16,14 @@ let currentStroke: { x: number; y: number }[] | null = null;
 const strokes: { x: number; y: number }[][] = [];
 const drawingChanged = new Event("drawing-changed");
 
+const redoStack: { x: number; y: number }[][] = [];
+
 canvas.addEventListener("mousedown", (e) => {
   cursor.active = true;
   cursor.x = e.offsetX;
   cursor.y = e.offsetY;
+
+  redoStack.length = 0;
 
   currentStroke = [{ x: cursor.x, y: cursor.y }];
   strokes.push(currentStroke);
@@ -67,5 +71,31 @@ document.body.appendChild(clearButton);
 
 clearButton.addEventListener("click", () => {
   strokes.length = 0;
+  redoStack.length = 0;
+  canvas.dispatchEvent(drawingChanged);
+});
+
+const undoButton = document.createElement("button");
+undoButton.textContent = "Undo";
+document.body.appendChild(undoButton);
+
+undoButton.addEventListener("click", () => {
+  if (strokes.length > 0) {
+    const s = strokes.pop()!;
+    redoStack.push(s);
+    canvas.dispatchEvent(drawingChanged);
+  }
+});
+
+const redoButton = document.createElement("button");
+redoButton.textContent = "Redo";
+document.body.appendChild(redoButton);
+
+redoButton.addEventListener("click", () => {
+  if (redoStack.length > 0) {
+    const s = redoStack.pop()!;
+    strokes.push(s);
+  }
+
   canvas.dispatchEvent(drawingChanged);
 });
