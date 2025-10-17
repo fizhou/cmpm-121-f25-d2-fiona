@@ -7,3 +7,13 @@ canvas {
   border-radius: 35px;
   box-shadow: 3px 4px;
 }
+
+button {
+  font-family: "Lucida Console", "Courier New", monospace;
+  font-size: 10px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 3px solid black;
+  box-shadow: 1px 1px;
+  cursor: pointer;
+}
