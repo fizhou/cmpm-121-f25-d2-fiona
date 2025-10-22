@@ -12,6 +12,8 @@ document.body.appendChild(canvas);
 const ctx = canvas.getContext("2d")!;
 const cursor = { active: false, x: 0, y: 0 };
 
+let defaultMarkerWidth = 3;
+
 interface DisplayCommand {
   display(ctx: CanvasRenderingContext2D): void;
 }
@@ -73,7 +75,10 @@ canvas.addEventListener("mousedown", (e) => {
   cursor.y = e.offsetY;
 
   redoStack.length = 0;
-  currentStroke = new MarkerCommand("black", 2, { x: cursor.x, y: cursor.y });
+  currentStroke = new MarkerCommand("black", defaultMarkerWidth, {
+    x: cursor.x,
+    y: cursor.y,
+  });
   strokes.push(currentStroke);
 
   canvas.dispatchEvent(drawingChanged);
@@ -142,4 +147,53 @@ redoButton.addEventListener("click", () => {
   }
 
   canvas.dispatchEvent(drawingChanged);
+});
+
+const markerStatus = document.createElement("div");
+markerStatus.className = "marker-status default";
+
+const labels: Record<string, string> = {
+  default: "Default Marker",
+  thin: "Thin Marker",
+  thick: "Thick Marker",
+};
+
+markerStatus.textContent = labels["default"] ?? "Marker";
+document.body.appendChild(markerStatus);
+
+function updateMarkerStatus(kind: "default" | "thin" | "thick") {
+  markerStatus.classList.toggle("default", kind === "default");
+  markerStatus.classList.toggle("thin", kind === "thin");
+  markerStatus.classList.toggle("thick", kind === "thick");
+  markerStatus.textContent = labels[kind] ?? "Marker";
+}
+
+const defaultButton = document.createElement("button");
+defaultButton.textContent = "Default Marker";
+document.body.appendChild(defaultButton);
+
+defaultButton.addEventListener("click", () => {
+  defaultMarkerWidth = 3;
+
+  updateMarkerStatus("default");
+});
+
+const thinButton = document.createElement("button");
+thinButton.textContent = "Thin Marker";
+document.body.appendChild(thinButton);
+
+thinButton.addEventListener("click", () => {
+  defaultMarkerWidth = 1;
+
+  updateMarkerStatus("thin");
+});
+
+const thickButton = document.createElement("button");
+thickButton.textContent = "Thick Marker";
+document.body.appendChild(thickButton);
+
+thickButton.addEventListener("click", () => {
+  defaultMarkerWidth = 5;
+
+  updateMarkerStatus("thick");
 });

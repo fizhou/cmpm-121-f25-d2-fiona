@@ -12,8 +12,21 @@ button {
   font-family: "Lucida Console", "Courier New", monospace;
   font-size: 10px;
   padding: 5px 10px;
+  margin: 4px;
   border-radius: 8px;
   border: 3px solid black;
   box-shadow: 1px 1px;
   cursor: pointer;
+}
+
+.marker-status {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  font-family: "Lucida Console", "Courier New", monospace;
+  padding: 6px 10px;
+  border: 3px solid black;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 1px 1px;
 }
