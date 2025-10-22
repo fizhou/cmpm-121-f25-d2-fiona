@@ -12,11 +12,60 @@ document.body.appendChild(canvas);
 const ctx = canvas.getContext("2d")!;
 const cursor = { active: false, x: 0, y: 0 };
 
-let currentStroke: { x: number; y: number }[] | null = null;
-const strokes: { x: number; y: number }[][] = [];
-const drawingChanged = new Event("drawing-changed");
+interface DisplayCommand {
+  display(ctx: CanvasRenderingContext2D): void;
+}
 
-const redoStack: { x: number; y: number }[][] = [];
+type point = { x: number; y: number };
+
+class MarkerCommand implements DisplayCommand {
+  points: point[] = [];
+  color: string;
+  width: number;
+
+  constructor(color = "black", width = 2, start?: point) {
+    this.color = color;
+    this.width = width;
+
+    if (start) {
+      this.points.push(start);
+    }
+  }
+
+  drag(x: number, y: number) {
+    this.addPoint({ x, y });
+  }
+
+  addPoint(p: point) {
+    this.points.push(p);
+  }
+
+  display(ctx: CanvasRenderingContext2D) {
+    if (this.points.length < 1) {
+      return;
+    }
+
+    ctx.save();
+    ctx.strokeStyle = this.color;
+    ctx.lineWidth = this.width;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(this.points[0].x, this.points[0].y);
+
+    for (let i = 1; i < this.points.length; i++) {
+      ctx.lineTo(this.points[i].x, this.points[i].y);
+    }
+
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+const strokes: DisplayCommand[] = [];
+const drawingChanged = new Event("drawing-changed");
+const redoStack: DisplayCommand[] = [];
+
+let currentStroke: MarkerCommand | null = null;
 
 canvas.addEventListener("mousedown", (e) => {
   cursor.active = true;
@@ -24,20 +73,21 @@ canvas.addEventListener("mousedown", (e) => {
   cursor.y = e.offsetY;
 
   redoStack.length = 0;
-
-  currentStroke = [{ x: cursor.x, y: cursor.y }];
+  currentStroke = new MarkerCommand("black", 2, { x: cursor.x, y: cursor.y });
   strokes.push(currentStroke);
 
   canvas.dispatchEvent(drawingChanged);
 });
 
 canvas.addEventListener("mousemove", (e) => {
-  if (!cursor.active || !currentStroke) return;
+  if (!cursor.active || !currentStroke) {
+    return;
+  }
 
   const x = e.offsetX;
   const y = e.offsetY;
 
-  currentStroke.push({ x, y });
+  currentStroke.drag(x, y);
   cursor.x = x;
   cursor.y = y;
 
@@ -54,14 +104,8 @@ canvas.addEventListener("drawing-changed", () => {
 
   ctx.strokeStyle = "black";
   ctx.lineWidth = 2;
-  for (const stroke of strokes) {
-    if (stroke.length < 2) continue;
-    ctx.beginPath();
-    ctx.moveTo(stroke[0].x, stroke[0].y);
-    for (let i = 1; i < stroke.length; i++) {
-      ctx.lineTo(stroke[i].x, stroke[i].y);
-    }
-    ctx.stroke();
+  for (const cmd of strokes) {
+    cmd.display(ctx);
   }
 });
 
