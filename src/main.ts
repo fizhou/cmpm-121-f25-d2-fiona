@@ -63,11 +63,54 @@ class MarkerCommand implements DisplayCommand {
   }
 }
 
+class cursorPreview {
+  x: number;
+  y: number;
+
+  constructor(x: number, y: number) {
+    this.x = x;
+    this.y = y;
+  }
+
+  draw(ctx: CanvasRenderingContext2D) {
+    ctx.save();
+    ctx.font = "25px Lucida Console";
+    ctx.fillStyle = "black";
+    ctx.fillText("+", this.x - 7, this.y + 6);
+    ctx.restore();
+  }
+}
+
 const strokes: DisplayCommand[] = [];
-const drawingChanged = new Event("drawing-changed");
 const redoStack: DisplayCommand[] = [];
 
+const drawingChanged = new Event("drawing-changed");
+
 let currentStroke: MarkerCommand | null = null;
+let currentPreview: cursorPreview | null = null;
+
+type toolMovedDetail = { x: number; y: number };
+type toolMovedEvent = CustomEvent<toolMovedDetail>;
+
+const toolMoved = "tool-moved";
+
+canvas.addEventListener("mouseenter", (e) => {
+  cursor.x = e.offsetX;
+  cursor.y = e.offsetY;
+
+  currentPreview = new cursorPreview(cursor.x, cursor.y);
+  canvas.dispatchEvent(
+    new CustomEvent<toolMovedDetail>(toolMoved, {
+      detail: { x: cursor.x, y: cursor.y },
+    }),
+  );
+  canvas.dispatchEvent(drawingChanged);
+});
+
+canvas.addEventListener("mouseleave", () => {
+  currentPreview = null;
+  canvas.dispatchEvent(drawingChanged);
+});
 
 canvas.addEventListener("mousedown", (e) => {
   cursor.active = true;
@@ -85,16 +128,17 @@ canvas.addEventListener("mousedown", (e) => {
 });
 
 canvas.addEventListener("mousemove", (e) => {
-  if (!cursor.active || !currentStroke) {
-    return;
-  }
-
   const x = e.offsetX;
   const y = e.offsetY;
 
-  currentStroke.drag(x, y);
-  cursor.x = x;
-  cursor.y = y;
+  currentPreview = new cursorPreview(x, y);
+  canvas.dispatchEvent(
+    new CustomEvent<toolMovedDetail>(toolMoved, { detail: { x, y } }),
+  );
+
+  if (cursor.active && currentStroke) {
+    currentStroke.drag(x, y);
+  }
 
   canvas.dispatchEvent(drawingChanged);
 });
@@ -102,17 +146,23 @@ canvas.addEventListener("mousemove", (e) => {
 canvas.addEventListener("mouseup", () => {
   cursor.active = false;
   currentStroke = null;
+
+  canvas.dispatchEvent(drawingChanged);
 });
 
 canvas.addEventListener("drawing-changed", () => {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  ctx.strokeStyle = "black";
-  ctx.lineWidth = 2;
   for (const cmd of strokes) {
     cmd.display(ctx);
   }
+
+  if (!cursor.active && currentPreview) {
+    currentPreview.draw(ctx);
+  }
 });
+
+// UI BUTTONS
 
 const clearButton = document.createElement("button");
 clearButton.textContent = "Clear Canvas";
@@ -148,6 +198,8 @@ redoButton.addEventListener("click", () => {
 
   canvas.dispatchEvent(drawingChanged);
 });
+
+// MARKER STATUS CONTROLS
 
 const markerStatus = document.createElement("div");
 markerStatus.className = "marker-status default";
