@@ -70,7 +70,7 @@ class cursorPreview {
   constructor(x: number, y: number) {
     this.x = x;
     this.y = y;
-  } 
+  }
 
   draw(ctx: CanvasRenderingContext2D) {
     ctx.save();
