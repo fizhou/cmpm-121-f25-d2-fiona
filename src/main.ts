@@ -94,6 +94,72 @@ type toolMovedEvent = CustomEvent<toolMovedDetail>;
 
 const toolMoved = "tool-moved";
 
+class EmojiCommand implements DisplayCommand {
+  emoji: string;
+  x: number;
+  y: number;
+  size: number;
+
+  constructor(emoji: string, x: number, y: number, size = 48) {
+    this.emoji = emoji;
+    this.x = x;
+    this.y = y;
+    this.size = size;
+  }
+
+  drag(x: number, y: number) {
+    this.x = x;
+    this.y = y;
+  }
+
+  display(ctx: CanvasRenderingContext2D) {
+    ctx.save();
+    ctx.font =
+      `${this.size}px 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', serif`;
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "center";
+    ctx.fillText(this.emoji, this.x, this.y);
+    ctx.restore();
+  }
+}
+
+class StickerPreviewCommand implements DisplayCommand {
+  emoji: string;
+  x: number;
+  y: number;
+  size: number;
+
+  constructor(emoji: string, x: number, y: number, size = 48) {
+    this.emoji = emoji;
+    this.x = x;
+    this.y = y;
+    this.size = size;
+  }
+
+  display(ctx: CanvasRenderingContext2D) {
+    ctx.save();
+    ctx.globalAlpha = 0.5; // ghost preview
+    ctx.font =
+      `${this.size}px 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', serif`;
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "center";
+    ctx.fillText(this.emoji, this.x, this.y);
+    ctx.restore();
+  }
+}
+
+const stickers = [
+  { label: "Heart 💖", emoji: "💖" },
+  { label: "Star ⭐", emoji: "⭐" },
+  { label: "Sparkle ✨", emoji: "✨" },
+];
+
+let selectedSticker: string | null = null;
+let stickerPreview: StickerPreviewCommand | null = null;
+let draggingSticker: EmojiCommand | null = null;
+
+//
+
 canvas.addEventListener("mouseenter", (e) => {
   cursor.x = e.offsetX;
   cursor.y = e.offsetY;
@@ -113,6 +179,20 @@ canvas.addEventListener("mouseleave", () => {
 });
 
 canvas.addEventListener("mousedown", (e) => {
+  if (selectedSticker) {
+    const r = canvas.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+
+    redoStack.length = 0; // new action invalidates redo
+    const cmd = new EmojiCommand(selectedSticker, x, y);
+    strokes.push(cmd);
+    draggingSticker = cmd;
+
+    canvas.dispatchEvent(new Event("drawing-changed"));
+    return;
+  }
+
+  // Marker behavior (no sticker selected)
   cursor.active = true;
   cursor.x = e.offsetX;
   cursor.y = e.offsetY;
@@ -128,6 +208,8 @@ canvas.addEventListener("mousedown", (e) => {
 });
 
 canvas.addEventListener("mousemove", (e) => {
+  if (selectedSticker) return;
+
   const x = e.offsetX;
   const y = e.offsetY;
 
@@ -143,9 +225,29 @@ canvas.addEventListener("mousemove", (e) => {
   canvas.dispatchEvent(drawingChanged);
 });
 
+canvas.addEventListener("mousemove", (e) => {
+  if (!selectedSticker || !stickerPreview) {
+    return;
+  }
+  const r = canvas.getBoundingClientRect();
+  stickerPreview.x = e.clientX - r.left;
+  stickerPreview.y = e.clientY - r.top;
+  canvas.dispatchEvent(new Event("tool-moved"));
+});
+
+canvas.addEventListener("mousemove", (e) => {
+  if (!draggingSticker) {
+    return;
+  }
+  const r = canvas.getBoundingClientRect();
+  draggingSticker.drag(e.clientX - r.left, e.clientY - r.top);
+  canvas.dispatchEvent(new Event("drawing-changed"));
+});
+
 canvas.addEventListener("mouseup", () => {
   cursor.active = false;
   currentStroke = null;
+  draggingSticker = null;
 
   canvas.dispatchEvent(drawingChanged);
 });
@@ -157,9 +259,17 @@ canvas.addEventListener("drawing-changed", () => {
     cmd.display(ctx);
   }
 
-  if (!cursor.active && currentPreview) {
+  if (stickerPreview) {
+    stickerPreview.display(ctx);
+  }
+
+  if (!selectedSticker && !cursor.active && currentPreview) {
     currentPreview.draw(ctx);
   }
+});
+
+canvas.addEventListener("tool-moved", () => {
+  canvas.dispatchEvent(drawingChanged);
 });
 
 // UI BUTTONS
@@ -195,7 +305,6 @@ redoButton.addEventListener("click", () => {
     const s = redoStack.pop()!;
     strokes.push(s);
   }
-
   canvas.dispatchEvent(drawingChanged);
 });
 
@@ -208,16 +317,26 @@ const labels: Record<string, string> = {
   default: "Default Marker",
   thin: "Thin Marker",
   thick: "Thick Marker",
+  heart: "Heart Sticker",
+  star: "Star Sticker",
+  sparkle: "Sparkle Sticker",
 };
 
 markerStatus.textContent = labels["default"] ?? "Marker";
 document.body.appendChild(markerStatus);
 
-function updateMarkerStatus(kind: "default" | "thin" | "thick") {
-  markerStatus.classList.toggle("default", kind === "default");
-  markerStatus.classList.toggle("thin", kind === "thin");
-  markerStatus.classList.toggle("thick", kind === "thick");
-  markerStatus.textContent = labels[kind] ?? "Marker";
+function updateMarkerStatus(
+  kind: "default" | "thin" | "thick" | "heart" | "star" | "sparkle",
+) {
+  {
+    markerStatus.classList.toggle("default", kind === "default");
+    markerStatus.classList.toggle("thin", kind === "thin");
+    markerStatus.classList.toggle("thick", kind === "thick");
+    markerStatus.classList.toggle("heart", kind === "heart");
+    markerStatus.classList.toggle("star", kind === "star");
+    markerStatus.classList.toggle("sparkle", kind === "sparkle");
+    markerStatus.textContent = labels[kind] ?? "Marker";
+  }
 }
 
 const defaultButton = document.createElement("button");
@@ -226,7 +345,8 @@ document.body.appendChild(defaultButton);
 
 defaultButton.addEventListener("click", () => {
   defaultMarkerWidth = 3;
-
+  selectedSticker = null;
+  canvas.dispatchEvent(drawingChanged);
   updateMarkerStatus("default");
 });
 
@@ -236,7 +356,8 @@ document.body.appendChild(thinButton);
 
 thinButton.addEventListener("click", () => {
   defaultMarkerWidth = 1;
-
+  selectedSticker = null;
+  canvas.dispatchEvent(drawingChanged);
   updateMarkerStatus("thin");
 });
 
@@ -246,6 +367,44 @@ document.body.appendChild(thickButton);
 
 thickButton.addEventListener("click", () => {
   defaultMarkerWidth = 5;
-
+  selectedSticker = null;
+  canvas.dispatchEvent(drawingChanged);
   updateMarkerStatus("thick");
+});
+
+// STICKER BUTTONS
+
+const stickerButtons: HTMLButtonElement[] = [];
+const stickerBar = document.createElement("div");
+document.body.appendChild(stickerBar);
+
+function selectSticker(emoji: string, clickedBtn: HTMLButtonElement) {
+  stickerButtons.forEach((b) => b.classList.remove("selectedTool"));
+  clickedBtn.classList.add("selectedTool");
+
+  selectedSticker = emoji;
+
+  if (!stickerPreview) {
+    stickerPreview = new StickerPreviewCommand(
+      emoji,
+      canvas.width / 2,
+      canvas.height / 2,
+    );
+  } else {
+    stickerPreview.emoji = emoji;
+  }
+
+  if (emoji === "💖") updateMarkerStatus("heart");
+  else if (emoji === "⭐") updateMarkerStatus("star");
+  else if (emoji === "✨") updateMarkerStatus("sparkle");
+
+  canvas.dispatchEvent(new Event("tool-moved"));
+}
+
+stickers.forEach(({ label, emoji }) => {
+  const btn = document.createElement("button");
+  btn.textContent = label;
+  btn.addEventListener("click", () => selectSticker(emoji, btn));
+  stickerBar.appendChild(btn);
+  stickerButtons.push(btn);
 });
