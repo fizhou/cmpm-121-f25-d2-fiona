@@ -339,6 +339,8 @@ function updateMarkerStatus(
   }
 }
 
+// MARKER BUTTONS
+
 const defaultButton = document.createElement("button");
 defaultButton.textContent = "Default Marker";
 document.body.appendChild(defaultButton);
@@ -377,6 +379,25 @@ thickButton.addEventListener("click", () => {
 const stickerButtons: HTMLButtonElement[] = [];
 const stickerBar = document.createElement("div");
 document.body.appendChild(stickerBar);
+
+const customSticker = document.createElement("button");
+customSticker.textContent = "Custom Sticker";
+stickerBar.appendChild(customSticker);
+
+customSticker.addEventListener("click", () => {
+  const emoji = prompt("Enter an emoji for your custom sticker:", "🌟");
+
+  if (emoji == null) {
+    return;
+  } else if (emoji) {
+    const btn = document.createElement("button");
+    btn.textContent = emoji;
+    btn.addEventListener("click", () => selectSticker(emoji, btn));
+    stickerBar.appendChild(btn);
+    stickerButtons.push(btn);
+    selectSticker(emoji, btn);
+  }
+});
 
 function selectSticker(emoji: string, clickedBtn: HTMLButtonElement) {
   stickerButtons.forEach((b) => b.classList.remove("selectedTool"));
